@@ -1,0 +1,13 @@
+/.env
+/www/.env
+/www/.env.*
+!/www/.env.example
+/www/vendor/
+/www/node_modules/
+/www/public/build/
+/www/public/hot
+/www/storage/*.key
+/www/storage/logs/*
+/www/bootstrap/cache/*.php
+/dump/*
+!/dump/.gitkeep

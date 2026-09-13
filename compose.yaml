@@ -1,0 +1,82 @@
+services:
+  app:
+    build:
+      context: .
+      dockerfile: docker/php/Dockerfile
+      args:
+        LOCAL_UID: ${LOCAL_UID:-1000}
+        LOCAL_GID: ${LOCAL_GID:-1000}
+    ports:
+      - "127.0.0.1:${APP_PORT:-8080}:80"
+    environment:
+      APP_ENV: local
+      APP_DEBUG: "true"
+      APP_URL: http://localhost:${APP_PORT:-8080}
+      DB_CONNECTION: pgsql
+      DB_HOST: db
+      DB_PORT: "5432"
+      DB_DATABASE: ${POSTGRES_DB}
+      DB_USERNAME: ${POSTGRES_USER}
+      DB_PASSWORD: ${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD in .env}
+      SESSION_DRIVER: file
+      CACHE_STORE: file
+      QUEUE_CONNECTION: sync
+      COMPOSER_HOME: /var/www/.composer
+    volumes:
+      - ./www:/var/www/html
+      - ./scripts:/opt/scripts:ro
+      - ./scaffold:/opt/scaffold:ro
+    depends_on:
+      db:
+        condition: service_healthy
+    healthcheck:
+      test: [CMD, curl, -fsS, http://localhost/up]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+      start_period: 30s
+  node:
+    image: node:22-bookworm-slim
+    user: "${LOCAL_UID:-1000}:${LOCAL_GID:-1000}"
+    working_dir: /var/www/html
+    command: npm run dev -- --host 0.0.0.0
+    environment:
+      HOME: /tmp
+      VITE_PORT: ${VITE_PORT:-5173}
+      APP_URL: http://localhost:${APP_PORT:-8080}
+      VITE_USE_POLLING: ${VITE_USE_POLLING:-true}
+    volumes:
+      - ./www:/var/www/html
+    ports:
+      - "127.0.0.1:${VITE_PORT:-5173}:5173"
+  db:
+    image: postgres:16-bookworm
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB}
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD in .env}
+    ports:
+      - "127.0.0.1:${DB_PORT:-5433}:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: [CMD-SHELL, 'pg_isready -U "$${POSTGRES_USER}" -d "$${POSTGRES_DB}"']
+      interval: 5s
+      timeout: 5s
+      retries: 20
+  pgadmin:
+    image: dpage/pgadmin4:9
+    profiles: [tools]
+    environment:
+      PGADMIN_DEFAULT_EMAIL: ${PGADMIN_DEFAULT_EMAIL}
+      PGADMIN_DEFAULT_PASSWORD: ${PGADMIN_DEFAULT_PASSWORD:?Set PGADMIN_DEFAULT_PASSWORD in .env}
+    ports:
+      - "127.0.0.1:${PGADMIN_PORT:-5050}:80"
+    volumes:
+      - pgadmin_data:/var/lib/pgadmin
+    depends_on:
+      db:
+        condition: service_healthy
+volumes:
+  postgres_data:
+  pgadmin_data:
